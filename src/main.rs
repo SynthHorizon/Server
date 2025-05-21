@@ -26,19 +26,49 @@ fn main() {
 }
 
 fn handle_connection(mut stream: TcpStream) {
-    let buf_reader = BufReader::new(&stream);
-    let request_line = buf_reader.lines().next().unwrap().unwrap();
+//    let buf_reader = BufReader::new(&stream);
+//    let request_line = buf_reader.lines().next().unwrap().unwrap();
+//
+//    let (status_line, filename) = match &request_line[..] {
+//       "GET / HTTP/1.1" => ("HTTP/1.1 200 OK", "static/index.html"),
+//       _ => ("HTTP/1.1 404 NOT FOUND", "static/404.html"),
+//    };
+//
+//    let contents = fs::read_to_string(filename).unwrap();
+//    let length = contents.len();
+//
+//    let response =
+//        format!("{status_line}\r\nContent-Length: {length}\r\n\r\n{contents}");
+//
+//    stream.write_all(response.as_bytes()).unwrap();
 
-    let (status_line, filename) = match &request_line[..] {
-       "GET / HTTP/1.1" => ("HTTP/1.1 200 OK", "frontend/hello.html"),
-       _ => ("HTTP/1.1 404 NOT FOUND", "frontend/404.html"),
+    let mut buffer = [0; 1024];
+    stream.read(&mut buffer).unwrap();
+
+    let request = String::from_utf8_lossy(&buffer[..]);
+    let request_line = request.lines().next().unwrap_or("");
+    let path = request_line.split_whitespace().nth(1).unwrap_or("/");
+
+    let file_path = match path {
+        "/" => "static/index.html",
+        "/script.js" => "static/script.js",
+        _ => "static/404.html",
     };
 
-    let contents = fs::read_to_string(filename).unwrap();
-    let length = contents.len();
+    let contents = fs::read_to_string(file_path).unwrap_or_else(|_| "404 Not Found".to_string());
 
-    let response =
-        format!("{status_line}\r\nContent-Length: {length}\r\n\r\n{contents}");
+    let content_type = if path.ends_with(".js") {
+        "text/javascript"
+    } else {
+        "text/html"
+    };
+
+    let response = format!(
+        "HTTP/1.1 200 OK\r\nContent-Type: {}\r\nContent-Length: {}\r\n\r\n{}",
+        content_type,
+        contents.len(),
+        contents,
+    );
 
     stream.write_all(response.as_bytes()).unwrap();
 }
